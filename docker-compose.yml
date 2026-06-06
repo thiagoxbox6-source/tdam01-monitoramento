@@ -138,6 +138,9 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./zabbix/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana-entrypoint.sh:/grafana-entrypoint.sh:ro
+      - ./module_patched_v2.js:/tmp/module_patched_v2.js:ro
+    entrypoint: ["/bin/bash", "/grafana-entrypoint.sh"]
     networks:
       zbx_net:
         ipv4_address: 172.20.0.14
