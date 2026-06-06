@@ -1,0 +1,27 @@
+# ============================================================
+# TDAM01 — Monitoramento | .gitignore
+# ============================================================
+
+# Credenciais reais — NUNCA commitar
+.env
+
+# Arquivos temporários de análise do plugin JS
+module.js
+module_current.js
+zabbix_app_module.js
+zabbix_datasource_module.js
+zabbix_datasource_module_patched.js
+zabbix_plugin_module.js
+patch_plugin.sh
+
+# Templates baixados do plugin (não são nossos)
+zabbix_linux_template.json
+zabbix_system_status.json
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Editor
+.vscode/
+*.tmp

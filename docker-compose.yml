@@ -1,0 +1,159 @@
+# ============================================================
+# TDAM01 — Stack de Monitoramento
+# Zabbix 7.0 + Grafana + PostgreSQL 15
+# Servidor: 192.168.0.100
+# ============================================================
+
+networks:
+  zbx_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  postgres_data:
+  zabbix_server_data:
+  grafana_data:
+  grafana_renderer_data:
+
+services:
+
+  # ── PostgreSQL 15 ──────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: tdam01-postgres
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      zbx_net:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Zabbix Server 7.0 ─────────────────────────────────────
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-7.0-latest
+    container_name: tdam01-zabbix-server
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ZBX_STARTPINGERS: 5
+      ZBX_STARTTRAPPERS: 5
+      ZBX_STARTPOLLERS: 10
+      ZBX_STARTSNMPTRAPPER: 1
+      ZBX_SNMPTRAPPERFILE: /var/lib/zabbix/snmptraps/snmptraps.log
+      ZBX_HOUSEKEEPINGFREQUENCY: 1
+      ZBX_MAXHOUSEKEEPERDELETE: 5000
+      ZBX_TIMEOUT: 10
+    ports:
+      - "10051:10051"
+    volumes:
+      - zabbix_server_data:/var/lib/zabbix
+      - ./zabbix/zabbix_agentd.d:/etc/zabbix/zabbix_agentd.d:ro
+    networks:
+      zbx_net:
+        ipv4_address: 172.20.0.11
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Zabbix Web (nginx) ────────────────────────────────────
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.0-latest
+    container_name: tdam01-zabbix-web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_SERVER_NAME: ${ZBX_SERVER_NAME}
+      PHP_TZ: ${PHP_TZ}
+    ports:
+      - "8080:8080"
+    networks:
+      zbx_net:
+        ipv4_address: 172.20.0.12
+    depends_on:
+      - zabbix-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ── Zabbix Agent2 (monitora o próprio host) ───────────────
+  zabbix-agent:
+    image: zabbix/zabbix-agent2:alpine-7.0-latest
+    container_name: tdam01-zabbix-agent
+    restart: unless-stopped
+    environment:
+      ZBX_HOSTNAME: Zabbix server
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_SERVER_PORT: 10051
+      ZBX_ACTIVE_ALLOW: "true"
+    ports:
+      - "10050:10050"
+    networks:
+      zbx_net:
+        ipv4_address: 172.20.0.13
+    depends_on:
+      - zabbix-server
+    privileged: true
+
+  # ── Grafana ───────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: tdam01-grafana
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_INSTALL_PLUGINS: ${GF_INSTALL_PLUGINS}
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ${GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS}
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL}
+      GF_RENDERING_SERVER_URL: ${GF_RENDERING_SERVER_URL}
+      GF_RENDERING_CALLBACK_URL: ${GF_RENDERING_CALLBACK_URL}
+      GF_LOG_FILTERS: ${GF_LOG_FILTERS}
+      GF_RENDERING_RENDERER_TOKEN: ${GF_RENDERING_RENDERER_TOKEN}
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./zabbix/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      zbx_net:
+        ipv4_address: 172.20.0.14
+    depends_on:
+      - zabbix-web
+
+  # ── Grafana Image Renderer ────────────────────────────────
+  renderer:
+    image: grafana/grafana-image-renderer:latest
+    container_name: tdam01-renderer
+    restart: unless-stopped
+    environment:
+      ENABLE_METRICS: "true"
+      AUTH_TOKEN: TDAM01-Renderer@2025!SecureToken
+    ports:
+      - "8081:8081"
+    networks:
+      zbx_net:
+        ipv4_address: 172.20.0.15
