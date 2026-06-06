@@ -2,7 +2,7 @@
 
 Stack completa de monitoramento para redes com equipamentos Cisco, usando **Zabbix 7** + **Grafana** rodando em Docker no Windows 11 Pro (WSL2/Docker Desktop).
 
-![Grafana](https://img.shields.io/badge/Grafana-10.4.3-orange) ![Zabbix](https://img.shields.io/badge/Zabbix-7.0.27-red) ![Docker](https://img.shields.io/badge/Docker-Compose-blue) ![SNMP](https://img.shields.io/badge/SNMP-v2c-green)
+![Grafana](https://img.shields.io/badge/Grafana-10.4.3-orange) ![Zabbix](https://img.shields.io/badge/Zabbix-7.0.27-red) ![Docker](https://img.shields.io/badge/Docker-Compose-blue) ![SNMP](https://img.shields.io/badge/SNMP-v2c-green) ![Oxidized](https://img.shields.io/badge/Oxidized-0.37-purple)
 
 ## 📊 Dashboard NOC
 
@@ -23,7 +23,8 @@ Docker Compose
 ├── Zabbix Agent2          — monitora o host
 ├── Grafana 10.4.3         — dashboards :3000
 │   └── Plugin: alexanderzobnin-zabbix-app v6.3.2
-└── Grafana Image Renderer — exportação de imagens :8081
+├── Grafana Image Renderer — exportação de imagens :8081
+└── Oxidized 0.37          — backup de configs via SSH+Git :8888
 ```
 
 ## 🚀 Como usar
@@ -91,13 +92,17 @@ Modo kiosk: adicione `?kiosk` na URL
 
 ```
 .
-├── docker-compose.yml          # Stack completa
+├── docker-compose.yml          # Stack completa (incluindo Oxidized)
 ├── .env.example                # Template de variáveis (copiar para .env)
+├── instalar.ps1                # Setup inicial da stack
+├── adicionar_hosts_zabbix.py   # Adiciona hosts no Zabbix via API
+├── adicionar_oxidized.ps1      # Deploy do Oxidized na stack
 ├── criar_dashboard_noc.ps1     # Gera o dashboard NOC no Grafana
 ├── aplicar_patch_plugin.ps1    # Aplica null-guards no plugin após docker compose up
 ├── module_patched_v2.js        # Plugin JS com patches de null-guard
-├── instalar.ps1                # Setup inicial da stack
-├── adicionar_hosts_zabbix.py   # Adiciona hosts no Zabbix via API
+├── oxidized/
+│   ├── config                  # Configuração do Oxidized (SSH→Git, porta 8888)
+│   └── router.db               # Lista de devices (RT01-WAN, SW01-LAN)
 └── zabbix/
     └── grafana/provisioning/   # Provisioning do Grafana
 ```
@@ -126,6 +131,40 @@ O script `aplicar_patch_plugin.ps1` substitui o `module.js` automaticamente apó
 | CPU | 60% | 85% |
 | Memória | 75% | 90% |
 | Temperatura | 60°C | 75°C |
+
+## 💾 Oxidized — Backup de Configurações
+
+O Oxidized conecta via SSH nos devices Cisco e salva o `running-config` automaticamente com histórico de versões via Git.
+
+| Campo | Valor |
+|-------|-------|
+| Devices | RT01-WAN (192.168.100.1), SW01-LAN (192.168.100.2) |
+| Protocolo | SSH — modelo `ios` |
+| Intervalo | 3600 segundos (1 hora) |
+| Storage | Git bare repo em `oxidized/oxidized.git/` |
+| Interface web | http://SERVER_IP:8888 |
+| IP Docker | 172.20.0.16 |
+
+### Adicionar o Oxidized à stack
+
+```powershell
+.\adicionar_oxidized.ps1
+```
+
+### URLs de acesso
+
+```
+http://192.168.0.100:8888                        # Lista de todos os nodes
+http://192.168.0.100:8888/node/show/RT01-WAN     # Config atual do roteador
+http://192.168.0.100:8888/node/show/SW01-LAN     # Config atual do switch
+```
+
+### Logs e troubleshooting
+
+```powershell
+docker logs -f tdam01-oxidized          # Acompanhar coletas em tempo real
+docker exec tdam01-oxidized cat /home/oxidized/.config/oxidized/crash  # Ver crash
+```
 
 ## 📝 Licença
 

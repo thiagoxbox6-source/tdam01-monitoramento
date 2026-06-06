@@ -18,6 +18,12 @@ patch_plugin.sh
 zabbix_linux_template.json
 zabbix_system_status.json
 
+# Oxidized — arquivos de runtime (não são código)
+oxidized/crash
+oxidized/crashes/
+oxidized/pid
+oxidized/oxidized.git/
+
 # Windows
 Thumbs.db
 Desktop.ini

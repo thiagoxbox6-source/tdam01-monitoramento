@@ -160,3 +160,19 @@ services:
     networks:
       zbx_net:
         ipv4_address: 172.20.0.15
+
+  # ── Oxidized — Backup de Configs de Rede ─────────────────
+  oxidized:
+    image: oxidized/oxidized:latest
+    container_name: tdam01-oxidized
+    restart: unless-stopped
+    environment:
+      CONFIG_RELOAD_INTERVAL: "600"
+      HOME: /oxidized
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./oxidized:/home/oxidized/.config/oxidized
+    networks:
+      zbx_net:
+        ipv4_address: 172.20.0.16
